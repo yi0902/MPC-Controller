@@ -9,7 +9,7 @@ This project aimes to implement a Model Predictive Controller (MPC) to drive a c
 
 Below the final output video. The car drove with an average speed of 50 mph.
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/MELCv99jTBY&t=6s/hqdefault.jpg)](https://www.youtube.com/watch?v=MELCv99jTBY&t=6s)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/MELCv99jTBY/0.jpg)](https://www.youtube.com/watch?v=MELCv99jTBY)
 
 ## The Vehicle Model
 
