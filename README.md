@@ -1,6 +1,89 @@
-# CarND-Controls-MPC
+# Model Predictive Control Project
 Self-Driving Car Engineer Nanodegree Program
 
+---
+
+## Description
+
+This project aimes to implement a Model Predictive Controller (MPC) to drive a car around a track in a simulator. The simulator takes as input the steering angle and throttle to drive the car, and gives as output a bunch of car states' values including the positions of the car, its speed, throttle and heading direction, as well as the coordinates of a reference trafectory (waypoints) that the car should follow. More details of the simulator's data can be found in DATA.md.
+
+Below the final output video. The car drove with an average speed of 50 mph.
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/MELCv99jTBY&t=6s/0.jpg)](https://www.youtube.com/watch?v=MELCv99jTBY&t=6s)
+
+## The Vehicle Model
+
+In model used in this project is the Global Kinematic Model. It's a simplification of dynamic model that ignore tire forces, gravity, and mass. This simplification reduces the accuracy of the model, but it makes model more tractable. At low and moderate speeds, Kinematic Model often approximate the actual vehicle dynamics.
+
+In Kinematic Model, vehicle state is represented by six variables which contain also error variables: 
+
+- **x,y** denote the position of the vehicle
+- **psi** the heading direction
+- **v** the velocity of the vehicle
+- **cte** the cross track error 
+- **epsi** the orientation error
+
+The update equations can be described as following:
+
+```
+x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+v_[t+1] = v[t] + a[t] * dt
+cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+```
+
+**Lf** measures the distance between the front of the vehicle and its center of gravity. The larger the vehicle, the slower the turn rate.
+
+**a** and **delta** denote the actuators of the vehicle model:
+
+- **a** the acceleration/throttle of the vehicle which can take values between -1 and 1 in this project
+- **delta** the steering angle of the vehicle which can take values between -25 and 25 degrees.
+ 
+The vehicle model can be found in the class **FG_eval**.
+
+## Timestep Length and Elapsed Duration (N & dt)
+
+For every state value provided by the simulator, an optimal trajectory for the next N time steps is computed that minimizes a cost function. dt denotes the duration between time steps. 
+
+The cost function is quadratic in the cross-track error, the error in the heading direction, the difference to the reference velocity, the actuator values and the difference of actuator values in adjacent time steps. The weights of each component of the cost function need to be fine tuned to smooth the driving transitions, so as the values of N and dt.
+
+I started with (N, dt) values as (20, 0.05), the car oscillated a lot and quickly went out of the track. As there is a latency of 0.1 second in the project, I then tried dt values bigger or equal to the latency, and through lots of trial and error I got best results with dt as 0.1. And it seemed that N = 10 worked better than N = 20 for my implementation.
+
+## Polynomial Fitting and MPC Preprocessing
+
+I used a 3 order polynomial to fit waypoints in order to approximates the road. Roads always have curves and turn to the right and left, a polynomial of 3rd order could be able to approximate the curve of any road. 
+
+As the wayspoints and vehicule's positions were given in global coordinates, while the simulator need vehicle's local coordinates (in the perspective of the vehicle) to plot reference trajectory and predicted path on the video, I first transformed the global coordiantes into vehicle's local coordiantes. This step also help a lot to simplify the MPC model as the new state becomes (0, 0, 0, v, cte, epsi) in vehicle's perspective.
+
+The transformation of coordiantes and polynomial fitting would be found in **main.cpp**.
+
+```
+auto waypoints = Eigen::MatrixXd(2, len);
+for (auto i = 0; i < len ; ++i){
+  double x_diff = ptsx[i] - px;
+  double y_diff = ptsy[i] - py;
+  waypoints(0,i) = cos(psi) * x_diff + sin(psi) * y_diff;
+  waypoints(1,i) = -sin(psi) * x_diff + cos(psi) * y_diff;  
+} 
+// Fit the polynomial to a 3 order polynomial
+auto coeffs = polyfit(waypoints.row(0), waypoints.row(1), 3);
+```
+
+## Model Predictive Control with Latency
+
+To handle with the latency, I took the approach of leaving vehicule run from actual state for the duration of latency, predicting the new state with Kinematic Model, then taking the predicted state as the new initial state for MPC. 
+
+```
+// Compute initial state for MPC by predicting the car's future state after the latency 
+state[0] = v * cos(0) * latency;
+state[1] = v * sin(0) * latency;
+state[2] = (-v / Lf) * steer * latency;
+state[3] = v + a * latency;
+state[4] = cte + v * sin(epsi) * latency;
+state[5] = epsi - (v / Lf) * steer * latency;
+```
 ---
 
 ## Dependencies
